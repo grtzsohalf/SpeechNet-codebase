@@ -1,0 +1,303 @@
+# hparas ref: https://github.com/espnet/espnet/blob/master/egs/librispeech/asr1/conf/tuning/train_pytorch_conformer_large.yaml
+data:
+  # The following depends on corpus
+  asr_corpus:                                 # Pass to dataloader
+    name: 'Librispeech'                   # Specify corpus
+    path: '/datasets/LibriSpeech/' #'pth/to/libri/speech'
+    #train_split: ['train-clean-100', 'train-clean-360', 'train-other-500']
+    train_split: ['train-clean-100']
+    dev_split: ['test-clean']
+    bucketing: True
+    batch_size: 8
+  lm_corpus:
+    name: 'Librispeech'                   # Specify corpus
+    path: '/datasets/LibriSpeech'
+    train_split: ['librispeech-lm-norm.txt'] # Official LM src from LibriSpeech
+    dev_split: ['test-clean']
+    bucketing: True
+    batch_size: 32
+
+  se_corpus:
+    seed: 1227
+    sample_rate: 16000
+    n_fft : 2048
+    hop_length : 160
+    win_length : 400
+    io_sample_pipeline: False
+
+    preprocessor:
+      win_ms: 25
+      hop_ms: 10
+      n_freq: 201
+      n_mels: 80
+      n_mfcc: 13
+      feat_list:
+        - feat_type: phase
+          channel: 0
+        - feat_type: linear
+          channel: 1
+          log: True
+        - feat_type: mel
+          channel: 0
+          log: True
+          delta: 2
+
+    trainset:
+      roots: ['/datasets/LibriSpeech/train-clean-100']
+      max_time: 10000
+      target_level: -25
+      noise_proportion: 1.0
+      noise_type: '/datasets/se_data/DNS/datasets/noise'
+      snrs: [3, 6, 9]
+      
+    dev_ratio: 0.01
+  
+    testset:
+      roots: [
+        '/datasets/LibriSpeech/test-clean',
+      ]
+      max_time: 10000
+      target_level: -25
+      noise_proportion: 1.0
+      noise_type: '/datasets/se_data/noise_data/Nonspeech_noclass'
+      snrs: [-8, -6, -4, -2, 0, 2, 4, 6, 8]
+
+    trainloader:
+      batch_size: 8
+    evalloader:
+      batch_size: 2
+  
+  sc_corpus:
+    name: 'Voxceleb1-100'
+    file_path: "/datasets/VoxCeleb1-100"
+    meta_data: "/datasets/VoxCeleb1-100/veri_test_class.txt"
+    speaker_num: 1251
+    sample_rate: 16000
+    max_timestep: 131200
+    max_eval_timestep: 160000
+    num_workers: 8
+    train_dataloader:
+      batch_size: 8
+    dev_dataloader: 
+      batch_size: 2
+    eval_dataloader:
+      batch_size: 2
+      
+  tts_corpus:
+    seed: 40666888
+    dataset: "LibriTTS"
+    preprocessed_path: "/datasets/LibriTTS100/LibriTTS"
+    n_mel_channels: 80
+    n_bins: 256
+    spk_embed_dim: 256
+    spk_embed_weight_std: 0.01
+    batch_size: 8
+
+    sampling_rate : 16000
+    n_fft : 2048
+    hop_length : 160
+    win_length : 400
+    f0_min : 50.0
+    f0_max : 950.0
+    energy_min : 0.0
+    energy_max : 400.0
+    use_spk_embed : True
+  
+  vcb_corpus:
+    preprocessor:
+        win_ms: 25
+        hop_ms: 10
+        n_freq: 201
+        n_mels: 80
+        n_mfcc: 13
+        feat_list:
+          - feat_type: phase
+            channel: 0
+          - feat_type: linear
+            channel: 0
+            log: True
+    seed: 13377
+    name: 'CMU18'
+    data_path: '/datasets/CMU18'
+    speaker_info_path: '/VCTK/speaker-info.txt'
+    test_speakers: 20
+    test_proportion: 0.1
+    sample_rate: 16000
+    n_fft : 2048
+    hop_length : 160
+    win_length : 400
+    n_utt_attr: 5000
+    train_loader:
+      batch_size: 8
+    dev_loader:
+      batch_size: 2
+
+  audio:                                  # Pass to audio transform
+    sample_rate: 16000
+    feat_type: 'fbank'
+    feat_dim:  80
+    apply_cmvn: True
+    delta_order: 2                        # 0: do nothing, 1: add delta, 2: add delta and accelerate
+    delta_window_size: 2
+    frame_length: 25 # ms
+    frame_shift: 10 # ms
+    dither: 0 # random dither audio, 0: no dither
+
+  text:
+    mode: 'subword'                     # 'character'/'word'/'subword'
+    vocab_file: 'tests/sample_data/subword-16k.model'
+    #vocab_file: 'utils/librispeech-10000.model'
+
+hparas:                                   # Experiment hyper-parameters
+  valid_step: 5000
+  max_step: 100001
+  #valid_step: 10000
+  #max_step: 100000001
+  tf_start: 1.0
+  tf_end: 1.0
+  tf_step: 500000
+  curriculum: 0
+  optimizer: 'AdamW'                        # AdamW
+  lr: 3.0e-4                                  # 4.0e-4
+  eps: 1.0e-12                              # 1e-12
+  lr_scheduler: 'warmup'                   # 'fixed'/'warmup'
+  lr_scheduler_option: 'get_linear_schedule_with_warmup' # 'get_linear_schedule_with_warmup'
+  betas: [0.9, 0.999]                       # [0.9, 0.999]
+  d_model: 256
+  warmup_step: 10000
+
+model:                                     # Model architecture
+  log_step: 1000
+  # ASR
+  ctc_weight: 0.3                          # Weight for CTC loss
+  lsm_weight: 0.1                          # Weight for label smoothing loss 
+  audio_encoder:
+    prenet: 'cnn'                          # 'vgg'/'cnn'/''
+    module: 'Transformer'                  # 'LSTM'/'GRU'/'Transformer'
+    dim: 256
+    dropout: 0.1
+    # Transformer specific
+    layer_content: 6
+    layer_speaker: 3
+    head: 4
+    linear_unit: 1024
+    normalized_before: True
+    concat_after: False
+    # multi-head self-attention
+    pos_enc_layer_type: rel_pos            # 'abs_pos'/'scaled_abs_pos'/'rel_pos'/'none'
+    selfattention_layer_type: rel_selfattn # 'selfattn'/'rel_selfattn'
+    # conformer
+    macaron_style: True
+    use_cnn_module: True
+    cnn_activation_type: swish
+    cnn_module_kernel: 31
+  attention:
+    mode: False                            # 'dot'/'loc'
+  audio_decoder:
+    out_dim: 80
+    upsampler: 'cnn'                       # 'linear', 'cnn', ''
+
+    dim: 256
+    dropout: 0.1
+    # Transformer specific
+    layer_share: 3
+    layer_content: 3
+    head: 4
+    linear_unit: 1024
+    normalized_before: True
+    concat_after: False
+    # multi-head self-attention
+    pos_enc_layer_type: rel_pos            # 'abs_pos'/'scaled_abs_pos'/'rel_pos'/'none'
+    selfattention_layer_type: rel_selfattn # 'selfattn'/'rel_selfattn'
+    # conformer
+    macaron_style: True
+    use_cnn_module: True
+    cnn_activation_type: swish
+    cnn_module_kernel: 31
+
+  text_decoder:
+    module: 'Transformer'                  # 'LSTM'/'GRU'/'Transformer'
+    dim: 256
+    layer: 4
+    dropout: 0.1
+    # Transformer specific
+    head: 4
+    linear_unit: 1024
+    normalized_before: True
+    concat_after: False
+
+  text_encoder:
+    word_dim: 256
+    n_layer: 4
+    att_n_head: 2
+    att_d_feat: 256
+    max_seq_len: 1000
+    fft_filter: 1024
+    fft_kernel: [9, 1]
+    dropout: 0.1
+
+  prosody_predictor:
+    dim: 256
+    dropout: 0.1
+    # Transformer specific
+    layer: 3
+    head: 4
+    linear_unit: 1024
+    normalized_before: True
+    concat_after: False
+    # multi-head self-attention
+    pos_enc_layer_type: rel_pos            # 'abs_pos'/'scaled_abs_pos'/'rel_pos'/'none'
+    selfattention_layer_type: rel_selfattn # 'selfattn'/'rel_selfattn'
+    # conformer
+    macaron_style: True
+    use_cnn_module: True
+    cnn_activation_type: swish
+    cnn_module_kernel: 31
+
+  variance_adaptor:                                                              
+    word_dim : 256                                                               
+    max_seq_len : 1000                                                           
+    variance_predictor_filter_size : 256
+    variance_predictor_kernel_size : 3                                           
+    variance_predictor_dropout : 0.5
+    
+
+  # LM
+  emb_tying: False                         # https://arxiv.org/pdf/1608.05859.pdf
+  emb_dim: 4096
+  module: 'LSTM'                           # 'LSTM'/'GRU'
+  dim: 4096
+  n_layers: 2
+  dropout: 0.2
+
+  se:
+    model:
+      name: Linear
+    objective:
+      name: L1
+    metrics:
+      - pesq_nb
+      - stoi
+      - sisdr
+    log_step: 1000
+
+  sc:
+    model:
+      name: Linear
+    log_step: 1000
+  
+
+  tts:
+    model:
+      name: FastSpeech2
+    objective:
+      name: FastSpeech2Loss
+    log_step: 1000
+    metrics:
+  vcb:
+    model: Linear
+    objective:
+      name: MSE
+    log_step: 1000
+    milestone: 10000
+    metrics:
