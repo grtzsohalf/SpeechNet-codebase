@@ -1,6 +1,8 @@
 
 # SpeechNet
 
+It is the codebase of [SpeechNet: A Universal Modularized Model for Speech Processing Tasks](https://arxiv.org/pdf/2105.03070.pdf)
+
 ![image](SpeechNet.png)
 
 ## Dependencies:
